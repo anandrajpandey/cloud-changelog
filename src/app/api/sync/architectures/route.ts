@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { db } from "@/lib/dynamodb";
+import { generateContentWithFallback } from "@/lib/gemini";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "CloudChangelogArticles";
@@ -19,7 +20,9 @@ function cleanImageMap(imageMap: Record<string, string[]>) {
   return Object.fromEntries(
     Object.entries(imageMap).map(([key, value]) => [
       key,
-      Array.isArray(value) ? value.filter((url) => typeof url === "string" && isUsableImageUrl(url)) : [],
+      Array.isArray(value)
+        ? [...new Set(value.filter((url) => typeof url === "string" && isUsableImageUrl(url)))]
+        : [],
     ])
   ) as Record<string, string[]>;
 }
@@ -44,22 +47,15 @@ function extractImageUrls(html: string) {
 
 function buildImageMap(sections: Array<{ id?: string; title?: string }>, imageUrls: string[]) {
   const imageMap: Record<string, string[]> = {};
-  if (imageUrls.length === 0) return imageMap;
+  const uniqueUrls = [...new Set(imageUrls.filter(isUsableImageUrl))];
+  if (uniqueUrls.length === 0) return imageMap;
 
   const primarySection =
     sections.find((section) => /about|overview|architecture|how it works|impact|update/i.test(`${section.title || ""} ${section.id || ""}`)) ||
     sections[0];
 
   if (primarySection?.id) {
-    imageMap[primarySection.id] = [imageUrls[0]];
-  }
-
-  if (!imageMap.aboutUpdate?.length && imageUrls[0]) {
-    imageMap.aboutUpdate = [imageUrls[0]];
-  }
-
-  if (imageUrls[1] && sections[0]?.id && !imageMap[sections[0].id]?.length) {
-    imageMap[sections[0].id] = [imageUrls[1]];
+    imageMap[primarySection.id] = [uniqueUrls[0]];
   }
 
   return imageMap;
@@ -204,10 +200,7 @@ export async function POST(req: Request) {
       }
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
+    const response = await generateContentWithFallback(ai, prompt);
 
     const aiText = response.text;
     if (!aiText) return NextResponse.json({ error: "No output" }, { status: 500 });

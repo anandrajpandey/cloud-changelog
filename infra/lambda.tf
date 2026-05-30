@@ -69,8 +69,7 @@ resource "aws_lambda_function" "sync_cron" {
 
   environment {
     variables = {
-      # Use custom domain if set, otherwise fallback to standard Amplify URL
-      APP_URL     = var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.nextjs_app.id}.amplifyapp.com"
+      APP_URL     = var.app_url
       SYNC_SECRET = var.sync_secret
     }
   }

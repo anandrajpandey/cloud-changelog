@@ -22,19 +22,7 @@ variable "sync_secret" {
   sensitive   = true
 }
 
-variable "github_repository" {
-  description = "GitHub repository for Amplify (e.g., username/repo)"
+variable "app_url" {
+  description = "Public URL of the frontend app (for example, a Netlify site URL)"
   type        = string
-}
-
-variable "github_token" {
-  description = "GitHub personal access token for Amplify to pull source code"
-  type        = string
-  sensitive   = true
-}
-
-variable "custom_domain_name" {
-  description = "Custom domain name (e.g., mydomain.com). Leave empty to use Amplify default URL."
-  type        = string
-  default     = ""
 }

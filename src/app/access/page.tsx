@@ -906,7 +906,7 @@ export default function AdminPage() {
                 onChange={(e) => setSelectedArticleSlug(e.target.value)}
               >
                 {articles.map((article) => (
-                  <option key={article.slug} value={article.slug}>
+                  <option key={article.id} value={article.slug}>
                     {article.title}
                   </option>
                 ))}
