@@ -68,6 +68,13 @@ resource "aws_amplify_app" "nextjs_app" {
 
   iam_service_role_arn = aws_iam_role.amplify_role.arn
 
+  lifecycle {
+    # Keep the existing GitHub connection stable on subsequent applies.
+    # Amplify only needs the token to create/import the app; updates can fail
+    # if Terraform keeps re-sending an expired or rejected token.
+    ignore_changes = [access_token]
+  }
+
   # Next 15 build specification
   build_spec = <<-EOT
     version: 1
