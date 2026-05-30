@@ -1,0 +1,13 @@
+
+> cloud-changelog@0.1.0 dev
+> next dev --port 3002
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3002
+- Network:       http://192.168.190.1:3002
+- Environments: .env.local
+✓ Ready in 488ms
+
+○ Compiling /_error ...
+ GET /api/articles/netflix-aws-architecture-deep-dive 500 in 70s (next.js: 70s, application-code: 206ms)
+[?25h
