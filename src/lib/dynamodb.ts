@@ -1,9 +1,24 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 
+const region =
+  process.env.CLOUDCHANGELOG_AWS_REGION ||
+  process.env.AWS_DEFAULT_REGION ||
+  process.env.AWS_REGION ||
+  "us-east-1";
+
+const accessKeyId =
+  process.env.CLOUDCHANGELOG_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
+const secretAccessKey =
+  process.env.CLOUDCHANGELOG_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
+const sessionToken =
+  process.env.CLOUDCHANGELOG_AWS_SESSION_TOKEN || process.env.AWS_SESSION_TOKEN;
+
 const client = new DynamoDBClient({
-  region:
-    process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1",
+  region,
+  ...(accessKeyId && secretAccessKey
+    ? { credentials: { accessKeyId, secretAccessKey, sessionToken } }
+    : {}),
 });
 
 export const db = DynamoDBDocumentClient.from(client);
