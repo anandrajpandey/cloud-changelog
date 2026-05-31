@@ -7,7 +7,7 @@ import { db, Article } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
 
 function getGeminiApiKey() {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+  return process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
 }
 
 function getAi() {
