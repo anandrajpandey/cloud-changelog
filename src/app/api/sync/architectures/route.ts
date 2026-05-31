@@ -174,7 +174,10 @@ function splitIntoParagraphs(text: unknown) {
     .filter(Boolean);
 }
 
-function ensureMinimumSections(sections: Array<{ id?: string; title?: string; subtitle?: string; content?: string; images?: string[] }>, generatedData: Record<string, unknown>) {
+function ensureMinimumSections(
+  sections: Array<{ id?: string; title?: string; subtitle?: string; content?: string; images?: string[] } | null>,
+  generatedData: Record<string, unknown>
+) {
   const title = String(generatedData.title || "").toLowerCase();
   const extraTitles = /cyber resilience|resilience|security/.test(title)
     ? ["Security and Resilience", "Operational Guardrails"]
@@ -192,8 +195,12 @@ function ensureMinimumSections(sections: Array<{ id?: string; title?: string; su
     { id: "key-takeaways", title: "Key Takeaways" },
   ];
 
-  if (sections.length >= 6) {
-    return sections;
+  const filteredSections = sections.filter(
+    (section): section is { id?: string; title?: string; subtitle?: string; content?: string; images?: string[] } => Boolean(section)
+  );
+
+  if (filteredSections.length >= 6) {
+    return filteredSections;
   }
 
   const paragraphPool = [
@@ -201,7 +208,7 @@ function ensureMinimumSections(sections: Array<{ id?: string; title?: string; su
     ...splitIntoParagraphs(generatedData.summary),
   ];
 
-  const enriched = [...sections];
+  const enriched = [...filteredSections];
 
   for (const preset of desiredSections) {
     if (enriched.length >= 7) break;
