@@ -167,6 +167,60 @@ function normalizeSections(value: unknown, fallback?: Record<string, unknown>) {
     .filter(Boolean);
 }
 
+function splitIntoParagraphs(text: unknown) {
+  return String(text || "")
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+function ensureMinimumSections(sections: Array<{ id?: string; title?: string; subtitle?: string; content?: string; images?: string[] }>, generatedData: Record<string, unknown>) {
+  const title = String(generatedData.title || "").toLowerCase();
+  const extraTitles = /cyber resilience|resilience|security/.test(title)
+    ? ["Security and Resilience", "Operational Guardrails"]
+    : /geoanalytics|location|geospatial|gis/.test(title)
+      ? ["Data Pipelines and Geo Processing", "Scaling the Spatial Workload"]
+      : ["Security and Resilience", "Scaling and Operations"];
+
+  const desiredSections = [
+    { id: "overview", title: "Overview" },
+    { id: "architecture-flow", title: "Architecture Flow" },
+    { id: "component-breakdown", title: "Component Breakdown" },
+    { id: "design-decisions", title: "Design Decisions" },
+    { id: extraTitles[0].toLowerCase().replace(/[^a-z0-9]+/g, "-"), title: extraTitles[0] },
+    { id: extraTitles[1].toLowerCase().replace(/[^a-z0-9]+/g, "-"), title: extraTitles[1] },
+    { id: "key-takeaways", title: "Key Takeaways" },
+  ];
+
+  if (sections.length >= 6) {
+    return sections;
+  }
+
+  const paragraphPool = [
+    ...splitIntoParagraphs(generatedData.aboutUpdate),
+    ...splitIntoParagraphs(generatedData.summary),
+  ];
+
+  const enriched = [...sections];
+
+  for (const preset of desiredSections) {
+    if (enriched.length >= 7) break;
+    if (enriched.some((section) => section.title?.toLowerCase() === preset.title.toLowerCase())) continue;
+
+    const text = paragraphPool.shift() || String(generatedData.aboutUpdate || generatedData.summary || "");
+    enriched.push({
+      ...preset,
+      subtitle: "",
+      content: text
+        ? `This architecture section expands the source story with concrete AWS implementation details. ${text}`
+        : "This architecture section expands the source story with concrete AWS implementation details and operational context.",
+      images: [],
+    });
+  }
+
+  return enriched;
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
@@ -182,9 +236,12 @@ export async function POST(req: Request) {
       Select a popular, complex software system that relies entirely on AWS.
       Explain the architecture in a flexible, story-driven format. Act as a senior cloud architect.
       Write valid JSON only. Do not wrap the response in markdown.
+      The response should be deep, specific, and clearly centered on AWS architecture rather than generic cloud commentary.
 
-      Use as many sections as the story needs, and rename or omit sections freely. Do not force fixed labels like "What&apos;s New" or "Before vs After" unless they truly fit.
-      Make the aboutUpdate-style explanation the deepest section, ideally 2-4 short paragraphs, with extra detail on components, data flow, AWS services, and architecture decisions.
+      Use 6 to 8 sections when possible, and rename or omit sections freely. Do not force fixed labels like "What&apos;s New" or "Before vs After" unless they truly fit.
+      Make the aboutUpdate-style explanation the deepest section, ideally 3-5 short paragraphs, with extra detail on components, data flow, AWS services, architecture decisions, reliability, and failure handling.
+      If the topic mentions cyber resilience, security, or recovery, add explicit depth on threat detection, blast radius reduction, failover, backup, and operational guardrails.
+      If the topic mentions geoanalytics, location, or spatial data, add explicit depth on data pipelines, indexing, map rendering, latency, and distributed processing.
       If relevant images are available, attach them to the most appropriate section and briefly explain what each image shows.
       Also include a sourceUrl pointing to the official AWS or source page used for the story.
 
@@ -223,7 +280,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to parse json" }, { status: 500 });
     }
 
-    const sections = normalizeSections(generatedData.sections, generatedData);
+    const sections = ensureMinimumSections(normalizeSections(generatedData.sections, generatedData), generatedData);
     const sourceUrl = generatedData.sourceUrl || (await resolveSourceUrl(generatedData.title || ""));
     const sourceImageMap = sourceUrl ? buildImageMap(sections as Array<{ id?: string; title?: string }>, await fetchSourceImages(sourceUrl)) : {};
 

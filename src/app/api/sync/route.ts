@@ -146,6 +146,57 @@ function normalizeSections(value: unknown, fallback?: Record<string, unknown>) {
     .filter(Boolean);
 }
 
+function splitIntoParagraphs(text: unknown) {
+  return String(text || "")
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+function ensureMinimumSections(sections: Array<{ id?: string; title?: string; subtitle?: string; content?: string; images?: string[] }>, generatedData: Record<string, unknown>) {
+  const desiredSections = [
+    { id: "whats-new", title: "What's New" },
+    { id: "why-it-matters", title: "Why It Matters" },
+    { id: "how-it-works", title: "How It Works" },
+    { id: "adoption-notes", title: "Adoption and Migration Notes" },
+    { id: "practical-implications", title: "Practical Implications" },
+    { id: "key-takeaways", title: "Key Takeaways" },
+  ];
+
+  if (sections.length >= desiredSections.length) {
+    return sections;
+  }
+
+  const paragraphPool = [
+    ...splitIntoParagraphs(generatedData.whatsNew),
+    ...splitIntoParagraphs(generatedData.aboutUpdate),
+    ...splitIntoParagraphs(generatedData.whyItMatters),
+    ...splitIntoParagraphs(generatedData.impact),
+    ...splitIntoParagraphs(generatedData.useCases),
+    ...splitIntoParagraphs(generatedData.keyTakeaways),
+    ...splitIntoParagraphs(generatedData.summary),
+  ];
+
+  const enriched = [...sections];
+
+  for (const preset of desiredSections) {
+    if (enriched.length >= desiredSections.length) break;
+    if (enriched.some((section) => section.title?.toLowerCase() === preset.title.toLowerCase())) continue;
+
+    const text = paragraphPool.shift() || String(generatedData.aboutUpdate || generatedData.summary || "");
+    enriched.push({
+      ...preset,
+      subtitle: "",
+      content: text
+        ? `This AWS update builds on the source story and adds practical context for readers. ${text}`
+        : "This AWS update expands on the source announcement with practical context and implications for teams adopting the change.",
+      images: [],
+    });
+  }
+
+  return enriched;
+}
+
 function buildPrompt(item: Parser.Item) {
   const snippet = item.contentSnippet || item.content || "";
 
@@ -154,10 +205,11 @@ You are writing a detailed AWS news article for a cloud publication.
 
 Write valid JSON only. Do not wrap the response in markdown.
 Use a rich editorial style with substantial detail. The article should feel closer to an actual AWS blog post than a short summary.
+The result must clearly read as an AWS update, not a generic technology article.
 
 Requirements:
-- Produce 5 to 8 sections when possible.
-- Each section should contain at least 2 to 4 well-formed sentences.
+- Produce 6 to 8 sections when possible.
+- Each section should contain at least 3 to 5 well-formed sentences.
 - Expand on what changed, how it works, which AWS services are involved, why it matters, and practical implications.
 - If the item is a launch announcement, include sections like what's new, why it matters, how it works, adoption or migration notes, practical use cases, and key takeaways.
 - If the item is an architecture post, include sections like overview, architecture flow, design decisions, service interactions, reliability/scaling notes, and key takeaways.
@@ -234,13 +286,13 @@ export async function POST(req: Request) {
             continue;
           }
 
-          const sections = normalizeSections(generatedData.sections, generatedData).filter(Boolean) as Array<{
+          const sections = ensureMinimumSections(normalizeSections(generatedData.sections, generatedData).filter(Boolean) as Array<{
             id: string;
             title: string;
             subtitle?: string;
             content: string | string[];
             images?: string[];
-          }>;
+          }>, generatedData);
           const sourceImageMap = await fetchSourceImages(item.link);
           const articleImageMap = buildImageMap(sections as Array<{ id?: string; title?: string }>, sourceImageMap);
           const slug = item.title
@@ -267,7 +319,7 @@ export async function POST(req: Request) {
               ...articleImageMap,
             }),
             ...generatedData,
-            category: "AWS Update",
+            category: "AWS Updates",
           };
 
           await db.send(
