@@ -188,7 +188,6 @@ Return JSON in this shape:
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("authorization");
     const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
     if (
       authHeader !== `Bearer ${process.env.SYNC_SECRET}` &&

@@ -167,7 +167,6 @@ function normalizeSections(value: unknown, fallback?: Record<string, unknown>) {
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("Authorization");
     const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     if (
       authHeader !== `Bearer ${process.env.CRON_SECRET}` &&
