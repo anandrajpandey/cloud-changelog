@@ -7,15 +7,34 @@ import type { Article, ArticleComment, ArticleSection } from "@/lib/dynamodb";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, ExternalLink, ArrowLeft, Lightbulb, MessageSquare, X, Send, Reply, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  CalendarDays,
+  ExternalLink,
+  ArrowLeft,
+  Lightbulb,
+  MessageSquare,
+  X,
+  Send,
+  Reply,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { formatLongDate, formatRelativeDate } from "@/lib/date";
 
-const legacySectionMeta: Array<{ id: string; title: string; icon?: ReactNode }> = [
-  { id: "whatsNew", title: "What's New?", icon: <Lightbulb className="w-5 h-5 text-primary" /> },
+const legacySectionMeta: Array<{
+  id: string;
+  title: string;
+  icon?: ReactNode;
+}> = [
+  {
+    id: "whatsNew",
+    title: "What's New?",
+    icon: <Lightbulb className="w-5 h-5 text-primary" />,
+  },
   { id: "aboutUpdate", title: "About The Update" },
   { id: "whyItMatters", title: "Why It Matters" },
   { id: "impact", title: "Impact on Existing Systems" },
@@ -28,7 +47,13 @@ function formatContent(content: string | string[]) {
   const parseBold = (text: string) => {
     const parts = text.split(/\*\*(.*?)\*\*/g);
     return parts.map((part, i) =>
-      i % 2 === 1 ? <strong key={i} className="text-foreground font-semibold">{part}</strong> : part
+      i % 2 === 1 ? (
+        <strong key={i} className="text-foreground font-semibold">
+          {part}
+        </strong>
+      ) : (
+        part
+      ),
     );
   };
 
@@ -45,23 +70,32 @@ function formatContent(content: string | string[]) {
   return parseBold(content);
 }
 
-function buildSections(article: Article): Array<ArticleSection & { icon?: ReactNode }> {
+function buildSections(
+  article: Article,
+): Array<ArticleSection & { icon?: ReactNode }> {
   const flexibleSections = (article.sections || []).map((section) => ({
     ...section,
     images: section.images || [],
   }));
 
   const aboutUpdateSection =
-    article.aboutUpdate && !flexibleSections.some((section) => {
-      const normalizedTitle = `${section.title || ""} ${section.id || ""}`.toLowerCase();
-      return normalizedTitle.includes("about the update") || normalizedTitle.includes("aboutupdate");
+    article.aboutUpdate &&
+    !flexibleSections.some((section) => {
+      const normalizedTitle =
+        `${section.title || ""} ${section.id || ""}`.toLowerCase();
+      return (
+        normalizedTitle.includes("about the update") ||
+        normalizedTitle.includes("aboutupdate")
+      );
     })
-      ? [{
-          id: "aboutUpdate",
-          title: "About The Update",
-          content: article.aboutUpdate,
-          images: article.images?.aboutUpdate || [],
-        } satisfies ArticleSection & { icon?: ReactNode }]
+      ? [
+          {
+            id: "aboutUpdate",
+            title: "About The Update",
+            content: article.aboutUpdate,
+            images: article.images?.aboutUpdate || [],
+          } satisfies ArticleSection & { icon?: ReactNode },
+        ]
       : [];
 
   if (flexibleSections.length > 0) {
@@ -124,7 +158,10 @@ function buildCommentTree(comments: ArticleComment[]) {
 
 function sortTree(nodes: CommentTreeNode[]): CommentTreeNode[] {
   return nodes
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    )
     .map((node) => ({
       ...node,
       replies: sortTree(node.replies),
@@ -150,11 +187,19 @@ function CommentNodeView({
   const isReplying = replyToId === node.id;
   const hasReplies = node.replies.length > 0;
   const repliesExpanded = expandedReplies[node.id] ?? false;
-  const initials = (node.anonymous ? "A" : (node.name || "G")).trim().charAt(0).toUpperCase();
+  const initials = (node.anonymous ? "A" : node.name || "G")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
 
   return (
-    <div className={depth === 0 ? "relative pl-14 pb-6" : "relative pl-14 pb-4"}>
-      <div className="absolute left-5 top-0 h-full border-l border-border/70" aria-hidden="true" />
+    <div
+      className={depth === 0 ? "relative pl-14 pb-6" : "relative pl-14 pb-4"}
+    >
+      <div
+        className="absolute left-5 top-0 h-full border-l border-border/70"
+        aria-hidden="true"
+      />
       <div className="absolute left-0 top-0 h-10 w-10 overflow-hidden rounded-full border border-border bg-muted text-foreground flex items-center justify-center shadow-sm">
         <span className="text-sm font-semibold">{initials}</span>
       </div>
@@ -162,7 +207,7 @@ function CommentNodeView({
       <div className="space-y-2">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <p className="text-sm font-semibold text-foreground">
-            {node.anonymous ? "Anonymous" : (node.name || "Guest")}
+            {node.anonymous ? "Anonymous" : node.name || "Guest"}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatRelativeDate(node.createdAt)}
@@ -190,8 +235,13 @@ function CommentNodeView({
               onClick={() => onToggleReplies(node.id)}
               className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:text-primary transition-colors"
             >
-              {repliesExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              {node.replies.length} {node.replies.length === 1 ? "reply" : "replies"}
+              {repliesExpanded ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+              {node.replies.length}{" "}
+              {node.replies.length === 1 ? "reply" : "replies"}
             </button>
           )}
         </div>
@@ -208,7 +258,10 @@ function CommentNodeView({
                 onChange={(e) => onReplyAnonymousChange(e.target.checked)}
                 className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary"
               />
-              <label htmlFor={`reply-anon-${node.id}`} className="text-xs text-muted-foreground">
+              <label
+                htmlFor={`reply-anon-${node.id}`}
+                className="text-xs text-muted-foreground"
+              >
                 Reply anonymously
               </label>
             </div>
@@ -227,11 +280,20 @@ function CommentNodeView({
             />
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" size="sm" onClick={() => onSubmitReply(node.id)}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onSubmitReply(node.id)}
+            >
               <Send className="h-4 w-4 mr-2" />
               Post Reply
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={onCancelReply}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={onCancelReply}
+            >
               Cancel
             </Button>
           </div>
@@ -271,7 +333,9 @@ export default function ArticlePage() {
   const [loading, setLoading] = useState(true);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [isMobileDrawer, setIsMobileDrawer] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
+  const [isMobileDrawer, setIsMobileDrawer] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [comments, setComments] = useState<ArticleComment[]>([]);
   const [commentName, setCommentName] = useState("");
@@ -281,7 +345,9 @@ export default function ArticlePage() {
   const [replyName, setReplyName] = useState("");
   const [replyContent, setReplyContent] = useState("");
   const [replyAnonymous, setReplyAnonymous] = useState(true);
-  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  const [expandedReplies, setExpandedReplies] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     async function fetchArticle() {
@@ -317,7 +383,9 @@ export default function ArticlePage() {
     async function fetchComments() {
       try {
         setCommentsLoading(true);
-        const res = await fetch(`/api/comments?slug=${encodeURIComponent(String(slug))}`);
+        const res = await fetch(
+          `/api/comments?slug=${encodeURIComponent(String(slug))}`,
+        );
         const data = await res.json();
         if (Array.isArray(data.comments)) {
           setComments(data.comments);
@@ -335,7 +403,10 @@ export default function ArticlePage() {
     fetchComments();
   }, [slug]);
 
-  const commentTree = useMemo(() => sortTree(buildCommentTree(comments)), [comments]);
+  const commentTree = useMemo(
+    () => sortTree(buildCommentTree(comments)),
+    [comments],
+  );
 
   async function submitComment(parentId: string | null = null) {
     const content = parentId ? replyContent.trim() : commentContent.trim();
@@ -391,8 +462,13 @@ export default function ArticlePage() {
     return (
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-24 text-center">
         <h1 className="text-3xl font-bold mb-4">Article Not Found</h1>
-        <p className="text-muted-foreground mb-8">It might have been removed or doesn&apos;t exist.</p>
-        <Link href="/" className="text-primary hover:underline inline-flex items-center gap-2 text-lg">
+        <p className="text-muted-foreground mb-8">
+          It might have been removed or doesn&apos;t exist.
+        </p>
+        <Link
+          href="/"
+          className="text-primary hover:underline inline-flex items-center gap-2 text-lg"
+        >
           <ArrowLeft className="w-5 h-5" />
           Back to Home
         </Link>
@@ -401,11 +477,15 @@ export default function ArticlePage() {
   }
 
   const sections = buildSections(article);
-  const referenceUrl = typeof article.sourceUrl === "string" ? article.sourceUrl.trim() : "";
+  const referenceUrl =
+    typeof article.sourceUrl === "string" ? article.sourceUrl.trim() : "";
 
   return (
     <article className="mx-auto w-full max-w-[96rem] px-4 sm:px-6 lg:px-8 py-12 pb-24 xl:pr-[19rem] 2xl:pr-[17rem]">
-      <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
+      >
         <ArrowLeft className="w-4 h-4" />
         Back
       </Link>
@@ -439,7 +519,11 @@ export default function ArticlePage() {
 
         <div className="flex gap-2 flex-wrap mb-10">
           {(article.tags || []).map((tag) => (
-            <Badge key={tag} variant="secondary" className="px-3 py-1 font-normal bg-card">
+            <Badge
+              key={tag}
+              variant="secondary"
+              className="px-3 py-1 font-normal bg-card"
+            >
               #{tag}
             </Badge>
           ))}
@@ -448,8 +532,12 @@ export default function ArticlePage() {
 
       <div className="space-y-16">
         {sections.map((section) => {
-          const sectionImages = section.images?.length ? section.images : article.images?.[section.id] || [];
-          const visibleImages = sectionImages.filter((imgUrl) => !brokenImages[imgUrl]);
+          const sectionImages = section.images?.length
+            ? section.images
+            : article.images?.[section.id] || [];
+          const visibleImages = sectionImages.filter(
+            (imgUrl) => !brokenImages[imgUrl],
+          );
 
           return (
             <motion.section
@@ -467,7 +555,9 @@ export default function ArticlePage() {
                 </h2>
 
                 {section.subtitle && (
-                  <p className="text-sm text-muted-foreground mb-4">{section.subtitle}</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {section.subtitle}
+                  </p>
                 )}
 
                 <div className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg text-justify [hyphens:auto]">
@@ -478,13 +568,21 @@ export default function ArticlePage() {
               {visibleImages.length > 0 && (
                 <div className="mt-6 flex flex-col items-center gap-4">
                   {visibleImages.map((imgUrl, imgIdx) => (
-                    <div key={imgIdx} className="w-full max-w-3xl rounded-xl overflow-hidden border border-border bg-card/50 flex justify-center">
+                    <div
+                      key={imgIdx}
+                      className="w-full max-w-3xl rounded-xl overflow-hidden border border-border bg-card/50 flex justify-center"
+                    >
                       <img
                         src={imgUrl}
                         alt={`${section.title} visual ${imgIdx + 1}`}
                         className="max-h-80 w-auto object-contain p-3"
                         loading="lazy"
-                        onError={() => setBrokenImages((current) => ({ ...current, [imgUrl]: true }))}
+                        onError={() =>
+                          setBrokenImages((current) => ({
+                            ...current,
+                            [imgUrl]: true,
+                          }))
+                        }
                       />
                     </div>
                   ))}
@@ -516,7 +614,9 @@ export default function ArticlePage() {
 
       <motion.aside
         initial={false}
-        animate={{ x: commentsOpen ? 0 : isMobileDrawer ? "100%" : "calc(100% - 3rem)" }}
+        animate={{
+          x: commentsOpen ? 0 : isMobileDrawer ? "100%" : "calc(100% - 3rem)",
+        }}
         transition={{ type: "spring", stiffness: 260, damping: 28 }}
         className="fixed right-0 top-20 z-40 w-[22rem] max-w-[calc(100vw-1rem)]"
       >
@@ -533,9 +633,16 @@ export default function ArticlePage() {
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-foreground">Comments</p>
-              <p className="text-xs text-muted-foreground">{comments.length} discussion{comments.length === 1 ? "" : "s"}</p>
+              <p className="text-xs text-muted-foreground">
+                {comments.length} discussion{comments.length === 1 ? "" : "s"}
+              </p>
             </div>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => setCommentsOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setCommentsOpen(false)}
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -551,7 +658,10 @@ export default function ArticlePage() {
                     onChange={(e) => setAnonymous(e.target.checked)}
                     className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary"
                   />
-                  <label htmlFor="top-anon" className="text-xs text-muted-foreground">
+                  <label
+                    htmlFor="top-anon"
+                    className="text-xs text-muted-foreground"
+                  >
                     Comment anonymously
                   </label>
                 </div>

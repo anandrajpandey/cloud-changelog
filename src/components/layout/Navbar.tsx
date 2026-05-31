@@ -74,9 +74,14 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex items-center gap-3 px-4 py-3 md:h-16 md:justify-between md:gap-6">
         <div className="flex items-center gap-2 md:shrink-0">
-          <Link href="/" className="flex items-center gap-2 font-mono shrink-0 min-w-0">
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-mono shrink-0 min-w-0"
+          >
             <CloudRain className="h-6 w-6 text-primary" />
-            <span className="font-bold text-lg tracking-tight truncate">IncentiveX</span>
+            <span className="font-bold text-lg tracking-tight truncate">
+              IncentiveX
+            </span>
           </Link>
         </div>
 
@@ -84,10 +89,16 @@ export function Navbar() {
           <Link href="/" className="hover:text-foreground transition-colors">
             Updates
           </Link>
-          <Link href="/companies" className="hover:text-foreground transition-colors">
+          <Link
+            href="/companies"
+            className="hover:text-foreground transition-colors"
+          >
             Companies
           </Link>
-          <Link href="/architectures" className="hover:text-foreground transition-colors">
+          <Link
+            href="/architectures"
+            className="hover:text-foreground transition-colors"
+          >
             Architectures
           </Link>
         </div>
@@ -157,7 +168,9 @@ export function Navbar() {
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
           >
-            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${mobileMenuOpen ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-200 ${mobileMenuOpen ? "rotate-180" : ""}`}
+            />
           </button>
 
           <div
@@ -194,7 +207,9 @@ export function Navbar() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder={loading ? "Loading articles..." : "Search articles..."}
+              placeholder={
+                loading ? "Loading articles..." : "Search articles..."
+              }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setFocused(true)}
