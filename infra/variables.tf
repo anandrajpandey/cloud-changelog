@@ -22,7 +22,8 @@ variable "sync_secret" {
   sensitive   = true
 }
 
-variable "app_url" {
-  description = "Public URL of the frontend app (for example, a Netlify site URL)"
+variable "github_token" {
+  description = "GitHub personal access token with repo access for Amplify app creation"
   type        = string
+  sensitive   = true
 }

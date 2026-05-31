@@ -1,4 +1,3 @@
-# DynamoDB
 resource "aws_dynamodb_table" "articles" {
   name         = "CloudChangelogArticles"
   billing_mode = "PAY_PER_REQUEST" # Free tier friendly
@@ -14,7 +13,6 @@ resource "aws_dynamodb_table" "articles" {
     type = "S"
   }
 
-  # Global Secondary Index to query by slug
   global_secondary_index {
     name            = "SlugIndex"
     hash_key        = "slug"
@@ -26,9 +24,8 @@ resource "aws_dynamodb_table" "articles" {
   }
 }
 
-# Lambda function that hits the Next.js API sync endpoint daily
-resource "aws_iam_role" "lambda_exec" {
-  name = "${var.project_name}-lambda-role"
+resource "aws_iam_role" "amplify_service_role" {
+  name = "${var.project_name}-amplify-service-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -37,88 +34,101 @@ resource "aws_iam_role" "lambda_exec" {
         Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
-          Service = "lambda.amazonaws.com"
+          Service = "amplify.amazonaws.com"
         }
       }
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_basic" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+resource "aws_iam_role_policy_attachment" "amplify_service_managed" {
+  role       = aws_iam_role.amplify_service_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess-Amplify"
 }
 
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  output_path = "${path.module}/lambda.zip"
+resource "aws_iam_role" "amplify_compute_role" {
+  name = "${var.project_name}-amplify-compute-role"
 
-  source {
-    content  = <<-EOF
-      import https from 'https';
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "amplify.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
 
-      export const handler = async (event) => {
-        const HOST = process.env.APP_URL;
+resource "aws_iam_policy" "amplify_compute_dynamo" {
+  name        = "${var.project_name}-amplify-compute-dynamo"
+  description = "Allow Amplify SSR compute to read and write CloudChangelogArticles in DynamoDB"
 
-        return new Promise((resolve, reject) => {
-          const req = https.request(
-            HOST + '/api/sync',
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer $${process.env.SYNC_SECRET}`
-              }
-            },
-            (res) => {
-              let data = '';
-              res.on('data', chunk => data += chunk);
-              res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
-            }
-          );
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:UpdateItem",
+          "dynamodb:DescribeTable"
+        ]
+        Resource = [
+          aws_dynamodb_table.articles.arn,
+          "${aws_dynamodb_table.articles.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
 
-          req.on('error', (e) => reject(e));
-          req.end();
-        });
-      };
-    EOF
-    filename = "index.mjs"
+resource "aws_iam_role_policy_attachment" "amplify_compute_dynamo" {
+  role       = aws_iam_role.amplify_compute_role.name
+  policy_arn = aws_iam_policy.amplify_compute_dynamo.arn
+}
+
+resource "aws_amplify_app" "site" {
+  name         = var.project_name
+  repository   = "https://github.com/anandrajpandey/cloud-changelog"
+  platform     = "WEB_COMPUTE"
+  access_token = var.github_token
+
+  build_spec = file("${path.module}/../amplify.yml")
+
+  iam_service_role_arn = aws_iam_role.amplify_service_role.arn
+  compute_role_arn     = aws_iam_role.amplify_compute_role.arn
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = aws_dynamodb_table.articles.name
+    GEMINI_API_KEY      = var.gemini_api_key
+    SYNC_SECRET         = var.sync_secret
+    CRON_SECRET         = var.sync_secret
   }
+
+  enable_branch_auto_build    = true
+  enable_branch_auto_deletion = false
+  enable_basic_auth           = false
 }
 
-resource "aws_lambda_function" "sync_cron" {
-  filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "${var.project_name}-sync"
-  role             = aws_iam_role.lambda_exec.arn
-  handler          = "index.handler"
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  runtime          = "nodejs20.x"
-  timeout          = 300 # 5 minutes
+resource "aws_amplify_branch" "main" {
+  app_id            = aws_amplify_app.site.id
+  branch_name       = "master"
+  stage             = "PRODUCTION"
+  framework         = "Next.js - SSR"
+  enable_auto_build = true
 
-  environment {
-    variables = {
-      APP_URL     = var.app_url
-      SYNC_SECRET = var.sync_secret
-    }
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = aws_dynamodb_table.articles.name
+    GEMINI_API_KEY      = var.gemini_api_key
+    SYNC_SECRET         = var.sync_secret
+    CRON_SECRET         = var.sync_secret
   }
-}
-
-resource "aws_cloudwatch_event_rule" "daily_sync" {
-  name                = "${var.project_name}-daily-sync"
-  description         = "Trigger sync API daily"
-  schedule_expression = "rate(1 day)"
-}
-
-resource "aws_cloudwatch_event_target" "lambda_target" {
-  rule      = aws_cloudwatch_event_rule.daily_sync.name
-  target_id = "SyncLambda"
-  arn       = aws_lambda_function.sync_cron.arn
-}
-
-resource "aws_lambda_permission" "allow_eventbridge" {
-  statement_id  = "AllowExecutionFromEventBridge"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.sync_cron.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.daily_sync.arn
 }
 
