@@ -271,6 +271,7 @@ export default function ArticlePage() {
   const [loading, setLoading] = useState(true);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [isMobileDrawer, setIsMobileDrawer] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [comments, setComments] = useState<ArticleComment[]>([]);
   const [commentName, setCommentName] = useState("");
@@ -303,6 +304,14 @@ export default function ArticlePage() {
     const timer = window.setTimeout(() => setBrokenImages({}), 0);
     return () => window.clearTimeout(timer);
   }, [slug]);
+
+  useEffect(() => {
+    const updateIsMobile = () => setIsMobileDrawer(window.innerWidth < 768);
+
+    updateIsMobile();
+    window.addEventListener("resize", updateIsMobile);
+    return () => window.removeEventListener("resize", updateIsMobile);
+  }, []);
 
   useEffect(() => {
     async function fetchComments() {
@@ -507,14 +516,14 @@ export default function ArticlePage() {
 
       <motion.aside
         initial={false}
-        animate={{ x: commentsOpen ? 0 : "calc(100% - 3rem)" }}
+        animate={{ x: commentsOpen ? 0 : isMobileDrawer ? "100%" : "calc(100% - 3rem)" }}
         transition={{ type: "spring", stiffness: 260, damping: 28 }}
         className="fixed right-0 top-20 z-40 w-[22rem] max-w-[calc(100vw-1rem)]"
       >
         <button
           type="button"
           onClick={() => setCommentsOpen((current) => !current)}
-          className="absolute -left-12 top-24 flex h-24 w-12 items-center justify-center rounded-l-2xl border border-border bg-card text-primary shadow-xl shadow-black/30"
+          className="absolute -left-12 top-24 hidden h-24 w-12 items-center justify-center rounded-l-2xl border border-border bg-card text-primary shadow-xl shadow-black/30 md:flex"
           aria-label={commentsOpen ? "Close comments" : "Open comments"}
         >
           <MessageSquare className="h-5 w-5" />
@@ -629,6 +638,15 @@ export default function ArticlePage() {
           </div>
         </div>
       </motion.aside>
+
+      <button
+        type="button"
+        onClick={() => setCommentsOpen((current) => !current)}
+        className="fixed right-0 top-1/2 z-40 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-l-2xl border border-border bg-card text-primary shadow-xl shadow-black/30 md:hidden"
+        aria-label={commentsOpen ? "Close comments" : "Open comments"}
+      >
+        <MessageSquare className="h-5 w-5" />
+      </button>
     </article>
   );
 }
