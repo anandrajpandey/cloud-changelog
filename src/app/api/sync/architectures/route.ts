@@ -3,13 +3,10 @@ import { GoogleGenAI } from "@google/genai";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { db } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
+import { getGeminiApiKey } from "@/lib/gemini-secret";
 
-function getGeminiApiKey() {
-  return process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-}
-
-function getAi() {
-  const apiKey = getGeminiApiKey();
+async function getAi() {
+  const apiKey = (await getGeminiApiKey()) || process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
   return new GoogleGenAI({ apiKey });
 }
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "CloudChangelogArticles";
@@ -180,7 +177,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ai = getAi();
+    const ai = await getAi();
     const prompt = `
       Select a popular, complex software system that relies entirely on AWS.
       Explain the architecture in a flexible, story-driven format. Act as a senior cloud architect.

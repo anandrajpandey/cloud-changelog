@@ -5,13 +5,10 @@ import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import crypto from "crypto";
 import { db, Article } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
+import { getGeminiApiKey } from "@/lib/gemini-secret";
 
-function getGeminiApiKey() {
-  return process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-}
-
-function getAi() {
-  const apiKey = getGeminiApiKey();
+async function getAi() {
+  const apiKey = (await getGeminiApiKey()) || process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
   return new GoogleGenAI({ apiKey });
 }
 const parser = new Parser();
@@ -202,7 +199,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ai = getAi();
+    const ai = await getAi();
     const newArticles: Article[] = [];
 
     for (const feedUrl of RSS_FEEDS) {

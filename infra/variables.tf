@@ -28,6 +28,12 @@ variable "llm_api_key" {
   sensitive   = true
 }
 
+variable "gemini_secret_name" {
+  description = "Secrets Manager secret name for the Gemini API key"
+  type        = string
+  default     = "cloud-changelog/gemini-api-key"
+}
+
 variable "sync_secret" {
   description = "Secret key for Lambda cron to authenticate with Next.js sync endpoint"
   type        = string

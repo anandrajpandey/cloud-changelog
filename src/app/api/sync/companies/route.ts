@@ -3,13 +3,10 @@ import { GoogleGenAI } from "@google/genai";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { db } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
+import { getGeminiApiKey } from "@/lib/gemini-secret";
 
-function getGeminiApiKey() {
-  return process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-}
-
-function getAi() {
-  const apiKey = getGeminiApiKey();
+async function getAi() {
+  const apiKey = (await getGeminiApiKey()) || process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
   return new GoogleGenAI({ apiKey });
 }
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "CloudChangelogArticles";
@@ -180,7 +177,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ai = getAi();
+    const ai = await getAi();
     const prompt = `
       Find a real-world example of a startup, gaming studio, or global company currently implementing AWS in its business.
       Act as an industry researcher. Write valid JSON only and keep the structure flexible.

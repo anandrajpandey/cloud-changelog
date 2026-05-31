@@ -89,6 +89,38 @@ resource "aws_iam_policy" "amplify_compute_dynamo" {
   })
 }
 
+resource "aws_secretsmanager_secret" "gemini_api_key" {
+  name = var.gemini_secret_name
+}
+
+resource "aws_secretsmanager_secret_version" "gemini_api_key" {
+  secret_id     = aws_secretsmanager_secret.gemini_api_key.id
+  secret_string = var.gemini_api_key
+}
+
+resource "aws_iam_policy" "amplify_compute_gemini_secret" {
+  name        = "${var.project_name}-amplify-compute-gemini-secret"
+  description = "Allow Amplify SSR compute to read the Gemini API key from Secrets Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_secretsmanager_secret.gemini_api_key.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "amplify_compute_gemini_secret" {
+  role       = aws_iam_role.amplify_compute_role.name
+  policy_arn = aws_iam_policy.amplify_compute_gemini_secret.arn
+}
+
 resource "aws_iam_role_policy_attachment" "amplify_compute_dynamo" {
   role       = aws_iam_role.amplify_compute_role.name
   policy_arn = aws_iam_policy.amplify_compute_dynamo.arn
@@ -107,6 +139,7 @@ resource "aws_amplify_app" "site" {
 
   environment_variables = {
     DYNAMODB_TABLE_NAME = aws_dynamodb_table.articles.name
+    GEMINI_SECRET_NAME  = var.gemini_secret_name
     LLM_API_KEY         = var.llm_api_key
     GEMINI_API_KEY      = var.gemini_api_key
     GOOGLE_API_KEY      = var.google_api_key
@@ -128,6 +161,7 @@ resource "aws_amplify_branch" "main" {
 
   environment_variables = {
     DYNAMODB_TABLE_NAME = aws_dynamodb_table.articles.name
+    GEMINI_SECRET_NAME  = var.gemini_secret_name
     LLM_API_KEY         = var.llm_api_key
     GEMINI_API_KEY      = var.gemini_api_key
     GOOGLE_API_KEY      = var.google_api_key
