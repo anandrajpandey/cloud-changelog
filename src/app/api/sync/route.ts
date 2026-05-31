@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { db, Article } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
 import { getGeminiApiKey } from "@/lib/gemini-secret";
+import { DAILY_CATEGORY_LIMIT, getRemainingDailyCategorySlots, getTodayArticleCount } from "@/lib/sync-limits";
 
 async function getAi() {
   const apiKey = (await getGeminiApiKey()) || process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
@@ -18,6 +19,7 @@ const RSS_FEEDS = [
   "https://aws.amazon.com/blogs/architecture/feed/",
 ];
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "CloudChangelogArticles";
+const CATEGORY = "AWS Updates";
 
 function isUsableImageUrl(url: string) {
   try {
@@ -77,7 +79,7 @@ function buildImageMap(sections: Array<{ id?: string; title?: string }>, imageUr
 
 async function fetchSourceImages(sourceUrl: string) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 4000);
 
   try {
     const response = await fetch(sourceUrl, {
@@ -243,6 +245,86 @@ Return JSON in this shape:
 `;
 }
 
+type CandidateItem = {
+  feedUrl: string;
+  item: Parser.Item;
+  id: string;
+};
+
+function parseGeneratedData(response: { text?: string | null }) {
+  const aiText = response.text;
+  if (!aiText) return null;
+
+  try {
+    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+    const jsonStr = jsonMatch ? jsonMatch[0] : aiText;
+    return JSON.parse(jsonStr) as Record<string, unknown>;
+  } catch {
+    console.error("Failed to parse Gemini output", aiText);
+    return null;
+  }
+}
+
+async function createArticleFromItem(ai: GoogleGenAI, candidate: CandidateItem) {
+  const { item, id } = candidate;
+  const prompt = buildPrompt(item);
+  const response = await generateContentWithFallback(ai, prompt);
+  const generatedData = parseGeneratedData(response);
+  if (!generatedData) return null;
+
+  const sections = ensureMinimumSections(
+    normalizeSections(generatedData.sections, generatedData).filter(Boolean) as Array<{
+      id: string;
+      title: string;
+      subtitle?: string;
+      content: string | string[];
+      images?: string[];
+    }>,
+    generatedData
+  );
+  const sourceImageMap = item.link ? await fetchSourceImages(item.link) : [];
+  const articleImageMap = buildImageMap(sections as Array<{ id?: string; title?: string }>, sourceImageMap);
+  const slug = item.title
+    ? item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")
+    : id;
+
+  const createdAt = new Date().toISOString();
+  const newArticle: Article = {
+    id,
+    itemType: "article",
+    title: item.title || "AWS Update",
+    slug,
+    sourceUrl: item.link || "",
+    publishedAt: item.isoDate || createdAt,
+    createdAt,
+    summary: typeof generatedData.summary === "string" ? generatedData.summary : "",
+    aboutUpdate: typeof generatedData.aboutUpdate === "string" ? generatedData.aboutUpdate : "",
+    sections: sections.map((section) => ({
+      id: section.id || slug,
+      title: section.title || "Section",
+      subtitle: section.subtitle || "",
+      content: section.content || "",
+      images: [...new Set(section.images || [])],
+    })),
+    tags: Array.isArray(generatedData.tags) ? generatedData.tags.map(String) : [],
+    images: cleanImageMap({
+      ...((generatedData.images as Record<string, string[]>) || {}),
+      ...articleImageMap,
+    }),
+    ...generatedData,
+    category: CATEGORY,
+  };
+
+  await db.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: newArticle,
+    })
+  );
+
+  return newArticle;
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
@@ -254,93 +336,81 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const remainingSlots = await getRemainingDailyCategorySlots(CATEGORY);
+    const existingToday = DAILY_CATEGORY_LIMIT - remainingSlots;
+    if (remainingSlots === 0) {
+      return NextResponse.json({
+        success: true,
+        processed: 0,
+        category: CATEGORY,
+        limit: DAILY_CATEGORY_LIMIT,
+        countToday: existingToday,
+        articles: [],
+      });
+    }
+
     const ai = await getAi();
-    const newArticles: Article[] = [];
+    const feeds = await Promise.all(
+      RSS_FEEDS.map(async (feedUrl) => ({
+        feedUrl,
+        feed: await parser.parseURL(feedUrl),
+      }))
+    );
 
-    for (const feedUrl of RSS_FEEDS) {
-      const feed = await parser.parseURL(feedUrl);
+    const candidates: CandidateItem[] = [];
+    const seenIds = new Set<string>();
 
-      for (const item of feed.items.slice(0, 1)) {
+    for (const { feedUrl, feed } of feeds) {
+      for (const item of feed.items.slice(0, 4)) {
         if (!item.link) continue;
-
         const id = crypto.createHash("md5").update(item.link).digest("hex");
-
-        const { Item } = await db.send(
-          new GetCommand({
-            TableName: TABLE_NAME,
-            Key: { id },
-          })
-        );
-        const existingArticle = Item as Partial<Article> | undefined;
-
-        const prompt = buildPrompt(item);
-        try {
-          const response = await generateContentWithFallback(ai, prompt);
-          const aiText = response.text;
-          if (!aiText) continue;
-
-          let generatedData;
-          try {
-            const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-            const jsonStr = jsonMatch ? jsonMatch[0] : aiText;
-            generatedData = JSON.parse(jsonStr);
-          } catch {
-            console.error("Failed to parse Gemini output", aiText);
-            continue;
-          }
-
-          const sections = ensureMinimumSections(normalizeSections(generatedData.sections, generatedData).filter(Boolean) as Array<{
-            id: string;
-            title: string;
-            subtitle?: string;
-            content: string | string[];
-            images?: string[];
-          }>, generatedData);
-          const sourceImageMap = await fetchSourceImages(item.link);
-          const articleImageMap = buildImageMap(sections as Array<{ id?: string; title?: string }>, sourceImageMap);
-          const slug = item.title
-            ? item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")
-            : id;
-
-          const newArticle: Article = {
-            id,
-            itemType: "article",
-            title: item.title || "AWS Update",
-            slug,
-            sourceUrl: item.link,
-            publishedAt: existingArticle?.publishedAt || item.isoDate || new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-            summary: generatedData.summary || "",
-            aboutUpdate: generatedData.aboutUpdate || "",
-            sections: sections.map((section) => ({
-              ...section,
-              images: [...new Set(section.images || [])],
-            })),
-            tags: Array.isArray(generatedData.tags) ? generatedData.tags : [],
-            images: cleanImageMap({
-              ...(generatedData.images as Record<string, string[]>) || {},
-              ...articleImageMap,
-            }),
-            ...generatedData,
-            category: "AWS Updates",
-          };
-
-          await db.send(
-            new PutCommand({
-              TableName: TABLE_NAME,
-              Item: newArticle,
-            })
-          );
-
-          newArticles.push(newArticle);
-        } catch (error) {
-          console.error("Gemini generation failed for sync item:", item.title, error);
-          continue;
-        }
+        if (seenIds.has(id)) continue;
+        seenIds.add(id);
+        candidates.push({ feedUrl, item, id });
       }
     }
 
-    return NextResponse.json({ success: true, processed: newArticles.length, articles: newArticles });
+    const selectedCandidates: CandidateItem[] = [];
+
+    for (const candidate of candidates) {
+      const { Item } = await db.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: candidate.id },
+        })
+      );
+
+      if (!Item) {
+        selectedCandidates.push(candidate);
+      }
+
+      if (selectedCandidates.length >= remainingSlots) {
+        break;
+      }
+    }
+
+    const settledArticles = await Promise.allSettled(
+      selectedCandidates.map(async (candidate) => createArticleFromItem(ai, candidate))
+    );
+
+    const newArticles = settledArticles.flatMap((result) => {
+      if (result.status === "fulfilled" && result.value) {
+        return [result.value];
+      }
+      if (result.status === "rejected") {
+        console.error("Gemini generation failed for sync item:", result.reason);
+      }
+      return [];
+    });
+
+    return NextResponse.json({
+      success: true,
+      processed: newArticles.length,
+      category: CATEGORY,
+      limit: DAILY_CATEGORY_LIMIT,
+      countToday: await getTodayArticleCount(CATEGORY),
+      articles: newArticles,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("Sync error:", error);

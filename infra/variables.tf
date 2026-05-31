@@ -45,3 +45,9 @@ variable "github_token" {
   type        = string
   sensitive   = true
 }
+
+variable "cron_schedule_expression" {
+  description = "EventBridge schedule expression for the daily content sync"
+  type        = string
+  default     = "rate(1 day)"
+}

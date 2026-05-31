@@ -4,12 +4,14 @@ import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { db } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
 import { getGeminiApiKey } from "@/lib/gemini-secret";
+import { DAILY_CATEGORY_LIMIT, getRemainingDailyCategorySlots, getTodayArticleCount } from "@/lib/sync-limits";
 
 async function getAi() {
   const apiKey = (await getGeminiApiKey()) || process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
   return new GoogleGenAI({ apiKey });
 }
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "CloudChangelogArticles";
+const CATEGORY = "Companies";
 
 function isUsableImageUrl(url: string) {
   try {
@@ -177,6 +179,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const remainingSlots = await getRemainingDailyCategorySlots(CATEGORY);
+    const existingToday = DAILY_CATEGORY_LIMIT - remainingSlots;
+    if (remainingSlots === 0) {
+      return NextResponse.json({
+        success: true,
+        category: CATEGORY,
+        limit: DAILY_CATEGORY_LIMIT,
+        countToday: existingToday,
+        article: null,
+      });
+    }
+
     const ai = await getAi();
     const prompt = `
       Find a real-world example of a startup, gaming studio, or global company currently implementing AWS in its business.
@@ -235,7 +249,7 @@ export async function POST(req: Request) {
       summary: generatedData.summary || "",
       aboutUpdate: generatedData.aboutUpdate || "",
       sections,
-      category: "Companies",
+      category: CATEGORY,
       tags: generatedData.tags || [],
       images: {
         ...cleanImageMap((generatedData.images as Record<string, string[]>) || {}),
@@ -262,7 +276,13 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, article: item });
+    return NextResponse.json({
+      success: true,
+      category: CATEGORY,
+      limit: DAILY_CATEGORY_LIMIT,
+      countToday: await getTodayArticleCount(CATEGORY),
+      article: item,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("Sync Companies Error:", error);
