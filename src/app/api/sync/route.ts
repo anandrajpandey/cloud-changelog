@@ -6,8 +6,13 @@ import crypto from "crypto";
 import { db, Article } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
 
+function getGeminiApiKey() {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+}
+
 function getAi() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const apiKey = getGeminiApiKey();
+  return new GoogleGenAI({ apiKey });
 }
 const parser = new Parser();
 

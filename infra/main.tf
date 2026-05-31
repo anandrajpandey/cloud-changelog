@@ -108,6 +108,7 @@ resource "aws_amplify_app" "site" {
   environment_variables = {
     DYNAMODB_TABLE_NAME = aws_dynamodb_table.articles.name
     GEMINI_API_KEY      = var.gemini_api_key
+    GOOGLE_API_KEY      = var.google_api_key
     SYNC_SECRET         = var.sync_secret
     CRON_SECRET         = var.sync_secret
   }
@@ -127,6 +128,7 @@ resource "aws_amplify_branch" "main" {
   environment_variables = {
     DYNAMODB_TABLE_NAME = aws_dynamodb_table.articles.name
     GEMINI_API_KEY      = var.gemini_api_key
+    GOOGLE_API_KEY      = var.google_api_key
     SYNC_SECRET         = var.sync_secret
     CRON_SECRET         = var.sync_secret
   }

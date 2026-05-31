@@ -4,8 +4,13 @@ import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { db } from "@/lib/dynamodb";
 import { generateContentWithFallback } from "@/lib/gemini";
 
+function getGeminiApiKey() {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+}
+
 function getAi() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const apiKey = getGeminiApiKey();
+  return new GoogleGenAI({ apiKey });
 }
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "CloudChangelogArticles";
 

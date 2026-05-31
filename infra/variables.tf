@@ -16,6 +16,12 @@ variable "gemini_api_key" {
   sensitive   = true
 }
 
+variable "google_api_key" {
+  description = "Fallback Google API key for Gemini"
+  type        = string
+  sensitive   = true
+}
+
 variable "sync_secret" {
   description = "Secret key for Lambda cron to authenticate with Next.js sync endpoint"
   type        = string
