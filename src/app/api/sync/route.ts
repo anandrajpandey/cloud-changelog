@@ -153,7 +153,10 @@ function splitIntoParagraphs(text: unknown) {
     .filter(Boolean);
 }
 
-function ensureMinimumSections(sections: Array<{ id?: string; title?: string; subtitle?: string; content?: string; images?: string[] }>, generatedData: Record<string, unknown>) {
+function ensureMinimumSections(
+  sections: Array<{ id?: string; title?: string; subtitle?: string; content?: string | string[]; images?: string[] }>,
+  generatedData: Record<string, unknown>
+) {
   const desiredSections = [
     { id: "whats-new", title: "What's New" },
     { id: "why-it-matters", title: "Why It Matters" },
